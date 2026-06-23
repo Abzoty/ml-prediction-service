@@ -1,0 +1,27 @@
+{
+  "best_model_name": "RandomForest",
+  "best_params": {
+    "n_estimators": 500,
+    "min_samples_split": 2,
+    "min_samples_leaf": 4,
+    "max_features": "log2",
+    "max_depth": 20,
+    "class_weight": null
+  },
+  "validation_metrics": {
+    "accuracy": 0.48936170212765956,
+    "macro_f1": 0.4840306957187213,
+    "log_loss": 1.186987964310263,
+    "top2": 0.7775628626692457,
+    "top3": 0.9303675048355899
+  },
+  "test_metrics": {
+    "accuracy": 0.4716981132075472,
+    "macro_f1": 0.47099520839921133,
+    "log_loss": 1.2111306178220442,
+    "top2": 0.7663280116110305,
+    "top3": 0.9259796806966618
+  },
+  "selected_features_count": 91,
+  "model_path": "models\\Best_Calibrated_Model.pkl"
+}
