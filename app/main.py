@@ -3,10 +3,17 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.core.model_manager import ModelManager
-from app.schemas import PredictionRequest, PredictionResponse
+from app.schemas import (
+    IncompleteCourseDetail,
+    InsufficientDataErrorBody,
+    PredictionRequest,
+    PredictionResponse,
+)
+from app.services.feature_engineering import InsufficientCourseDataError
 from app.services.prediction_service import PredictionService
 
 logging.basicConfig(
@@ -43,6 +50,26 @@ def predict(request: PredictionRequest) -> PredictionResponse:
     try:
         result = service.predict(courses, settings.model_version)
         return PredictionResponse(**result)
+
+    except InsufficientCourseDataError as e:
+        # Business validation error — the student's course data is incomplete.
+        # Return HTTP 422 with a structured body that the Java backend can
+        # parse and relay to the user verbatim.  This must NOT be treated as
+        # a server error; the circuit breaker on the Java side must ignore it.
+        logger.warning(
+            "Prediction rejected — missing=%s  incomplete=%s",
+            e.missing_courses,
+            [c["code"] for c in e.incomplete_courses],
+        )
+        body = InsufficientDataErrorBody(
+            message=str(e),
+            missing_courses=e.missing_courses,
+            incomplete_courses=[
+                IncompleteCourseDetail(**c) for c in e.incomplete_courses
+            ],
+        )
+        return JSONResponse(status_code=422, content=body.model_dump())
+
     except Exception as e:
         logger.exception("Prediction failed")
         raise HTTPException(status_code=500, detail=f"Prediction error: {e}")
@@ -62,9 +89,9 @@ def metadata():
     if not model_manager.is_loaded:
         raise HTTPException(status_code=503, detail="Model not loaded")
     return {
-        "model_version":       settings.model_version,
-        "features_count":      len(model_manager.selected_features),
-        "course_prefixes":     len(model_manager.course_prefixes),
-        "classes":             list(model_manager.label_encoder.classes_),
-        "best_model_name":     model_manager.model_info.get("best_model_name"),
+        "model_version":   settings.model_version,
+        "features_count":  len(model_manager.selected_features),
+        "course_prefixes": len(model_manager.course_prefixes),
+        "classes":         list(model_manager.label_encoder.classes_),
+        "best_model_name": model_manager.model_info.get("best_model_name"),
     }
