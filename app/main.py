@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.core.model_manager import ModelManager
 from app.schemas import (
-    IncompleteCourseDetail,
+    # <--- FIXED: Removed IncompleteCourseDetail from imports
     InsufficientDataErrorBody,
     PredictionRequest,
     PredictionResponse,
@@ -53,20 +53,15 @@ def predict(request: PredictionRequest) -> PredictionResponse:
 
     except InsufficientCourseDataError as e:
         # Business validation error — the student's course data is incomplete.
-        # Return HTTP 422 with a structured body that the Java backend can
-        # parse and relay to the user verbatim.  This must NOT be treated as
-        # a server error; the circuit breaker on the Java side must ignore it.
         logger.warning(
             "Prediction rejected — missing=%s  incomplete=%s",
             e.missing_courses,
-            [c["code"] for c in e.incomplete_courses],
+            e.incomplete_courses, # <--- FIXED: No longer needs list comprehension
         )
         body = InsufficientDataErrorBody(
             message=str(e),
             missing_courses=e.missing_courses,
-            incomplete_courses=[
-                IncompleteCourseDetail(**c) for c in e.incomplete_courses
-            ],
+            incomplete_courses=e.incomplete_courses, # <--- FIXED: Pass list of strings directly
         )
         return JSONResponse(status_code=422, content=body.model_dump())
 

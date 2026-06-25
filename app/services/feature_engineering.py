@@ -24,26 +24,11 @@ class InsufficientCourseDataError(ValueError):
     """
     Raised when the student's course registrations are incomplete for
     model inference.
-
-    Unlike a plain ``ValueError`` this carries *structured* detail about
-    exactly which courses are absent and which have an un-finalised grade,
-    so the Java backend can surface a precise, actionable message to the user.
-
-    Attributes
-    ----------
-    missing_courses:
-        Course codes that appear in the model's feature set but are not
-        present in the student's registrations at all.
-    incomplete_courses:
-        Courses that *are* registered but still have a ``null`` grade
-        (i.e. the result has not been entered yet).
-        Each entry is ``{"code": str, "missing_fields": List[str]}``.
     """
-
     def __init__(
         self,
         missing_courses: List[str],
-        incomplete_courses: List[Dict],
+        incomplete_courses: List[str],
     ) -> None:
         self.missing_courses = missing_courses
         self.incomplete_courses = incomplete_courses
@@ -78,48 +63,21 @@ def validate_course_data(
     courses: List[Dict],
     course_prefixes: List[str],
 ) -> None:
-    """
-    Assert that every course the model depends on is present in the
-    student's registrations *and* carries a final grade.
-
-    This must be called **before** ``build_feature_vector``.  When it
-    raises, the caller (``main.py``) maps the exception to an HTTP 422
-    response so the Java backend can relay the details to the user.
-
-    Parameters
-    ----------
-    courses:
-        Course records forwarded by the Java backend; each dict must
-        contain at minimum a ``"code"`` key.
-    course_prefixes:
-        The exact course codes the model was trained on, derived from
-        ``selected_features`` inside ``ModelManager``.
-
-    Raises
-    ------
-    InsufficientCourseDataError
-        Lists every missing course and every course whose grade is
-        still ``None`` (in-progress / not yet graded).
-    """
     by_code: Dict[str, Dict] = {c["code"]: c for c in courses}
 
     missing_courses: List[str] = []
-    incomplete_courses: List[Dict] = []
+    incomplete_courses: List[str] = [] # <-- Changed from List[Dict]
 
     for code in course_prefixes:
         record = by_code.get(code)
 
         if record is None:
-            # Student has never registered for a course the model needs.
             missing_courses.append(code)
             continue
 
-        # A null grade means the course result has not been finalised.
-        # All other numeric fields (points, result, term_work, exam_work)
-        # can be derived from the grade, so the grade is the single gating
-        # field for completeness.
         if record.get("grade") is None:
-            incomplete_courses.append({"code": code, "missing_fields": ["grade"]})
+            # <-- SIMPLIFIED: Just append the code string
+            incomplete_courses.append(code) 
 
     if missing_courses or incomplete_courses:
         raise InsufficientCourseDataError(missing_courses, incomplete_courses)
